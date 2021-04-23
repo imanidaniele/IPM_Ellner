@@ -357,9 +357,6 @@ END OF SKIP
 
 
 
-
-
-
 # 3.3 Case study 1B: Monocarp life cycle properties and events
 
 Use the Oenothera IBM, but set the probability of recruitment ($p_r$) so that $\lambda=1$
@@ -392,7 +389,7 @@ Both can be calculated as eigenvalues of the appropriate kernel
 
 
 
-The above doesn't work for me, so I found this solution instead (used specific filepaths so please commented out or edit to run on 
+The above doesn't work for me, so I found this solution instead (used specific filepaths so please commented out or edit to run your computer) 
 
 ## Generate artificial data by simulating IBM from Chapter 2 
 ```{r}
@@ -623,10 +620,27 @@ c(1:yr)
 ```
 
 ```{r, echo=FALSE, results=FALSE}
-# code for generating figures in book
-dev.new(); 
-set_graph_pars("panel4")
+# mean plant size and mean flowering plant size settle on some value - we can calc this value with the IPM
 
+# MEAN PLANT SIZE
+# calculate dominant eigenvector for iteration matrix (dominant right eigenvector is the stable distribution of the individual-level state variable (here is sizes, but could be age, stages, etc.))
+meshpts <- IPM.true$meshpts # store defined meshpts for neater code
+w.est <- Re(eigen(IPM.est$K)$vectors[, 1]) #find dominant eigenvector (w) of iteration matrix
+stable.z.dist.est <- w.est/sum(w.est) # scale w so it becomes a discrete probability density
+# proportion of individuals in each of the size categories centered on meshpts 
+mean.z.est <- sum(stable.z.dist.est * meshpts) # calculate mean size of each size category (each meshpt * fraction of individuals whose size is that meshpt and taking the sum)
+mean.z.est
+
+# MEAN FLOWERING PLANT SIZE
+wb.est <- p_bz(meshpts, m.par.est) * w.est
+stable.flowering.dist.est <- wb.est / sum(wb.est)
+mean.flowering.z.est <- sum(stable.flowering.dist.est * meshpts)
+mean.flowering.z.est
+```
+
+```{r, echo=FALSE, results=FALSE}
+# code for generating figures in book
+ 
 ## 1 - plot population density versus time...
 
 plot(1:yr, log(pop.size.t[1:yr]), type = "l", xlab = "Time", ylab = "Population size")
@@ -657,73 +671,62 @@ plot(density(sim.data$z), main = "", ylim = c(0, 0.4), xlab = "Plant size")
 lines(IPM.est$meshpts, stable.z.dist.est/diff(IPM.est$meshpts)[1], col = "red")
 add_panel_label("d")
 ```
-
-```{r, echo=FALSE, results=FALSE}
-# mean plant size and mean flowering plant size settle on some value - we can calc this value with the IPM
-
-# MEAN PLANT SIZE
-# calculate dominant eigenvector for iteration matrix (dominant right eigenvector is the stable distribution of the individual-level state variable (here is sizes, but could be age, stages, etc.))
-meshpts <- IPM.true$meshpts # store defined meshpts for neater code
-w.est <- Re(eigen(IPM.est$K)$vectors[, 1]) #find dominant eigenvector (w) of iteration matrix
-stable.z.dist.est <- w.est/sum(w.est) # scale w so it becomes a discrete probability density
-# proportion of individuals in each of the size categories centered on meshpts 
-mean.z.est <- sum(stable.z.dist.est * meshpts) # calculate mean size of each size category (each meshpt * fraction of individuals whose size is that meshpt and taking the sum)
-mean.z.est
-
-# MEAN FLOWERING PLANT SIZE
-wb.est <- p_bz(meshpts, m.par.est) * w.est
-stable.flowering.dist.est <- wb.est / sum(wb.est)
-mean.flowering.z.est <- sum(stable.flowering.dist.est * meshpts)
-mean.flowering.z.est
-```
 ################
 
 
 ## Section 1 - Construct IPM kernels; assumes the IBM has been run and results stored in sim.data 
+
+### Population growth rate
+
+1. use function `mk_K` and estimated model parameters `m.par.est` to create an iteration matrix.  
+
 ```{r}
 nBigMatrix <- 250; 
 
-min.size <- with(sim.data, min(z))
-max.size <- with(sim.data, max(z))
+min.size <- with(sim.data, min(z)) # find minimum size
+max.size <- with(sim.data, max(z)) # find maximum size
 
 # construct iteration matrix
-IPM.true <- mk_K(nBigMatrix, m.par.true, -3.5, 5.5)
+IPM.true <- mk_K(nBigMatrix, m.par.true, -3.5, 5.5) # +2 sd
 
-meshpts <- IPM.true$meshpts
-h <- diff(meshpts)[1]
+meshpts <- IPM.true$meshpts # create vector of the meshpts in the iteration matrix - meshpts are the average(?) size for each age class?
+h <- diff(meshpts)[1] # return difference between consecutive meshpts (tell us they are all evenly spaced? is this just a check for the matrix)
 ```
 
-Calculate $\lambda$
+2. Calculate $\lambda$ - use function `eigen` to compute the dominant eigenvalue, which is the population growth rate.
 ```{r lambda}
-# get the eigenvalues
+# get the dominant eigenvalue
 lambda0 <- Re(eigen(IPM.true$K,only.values = TRUE)$values[1]) #only.values = TRUE specifies to only calculate eigenvalues (not eigenvectors)
+lambda0
 
 fit.pop.growth <- lm(log(pop.size.t[-(1:10)])~c(11:yr))
 lambda.hat <- exp(coef(fit.pop.growth)[2])
+# is the simulated data still the IBM here?
 cat("Growth rate: IPM ",lambda0,"  sim ",lambda.hat, "\n")
 
-# plot this
+# come back maybe
+plot(pop.size.t ~ 1:(yr+1))
 ```
 
 ## IPM kernels for the calculations 
 ```{r}
 # define the iteration matricies
 P <- IPM.true$P # survival iteration matrix
-F <- IPM.true$F # fecundityiteration matrix
+F <- IPM.true$F # fecundity iteration matrix
 ```
 
 kernel $R=FN$ 
 ```{r}
 # calculate fundamental matrix (fundamental operator )
-N <- solve(diag(nBigMatrix)-P)
+N <- solve(diag(nBigMatrix)-P) # find probability of dying
 # diag(nBigMatrix) creates ID matrix (I)
 # solve inverts (I-P) matrix
+# # of integrations?
 
-
-R <- F %*% N # R = kernel -> projects the population from 1 generation to the next and 
+R <- F %*% N # R = kernel -> projects the population from 1 generation to the next
 ```
 
-Compute $R0$
+Compute $R_0$: Review Taom's notes
 ```{r}
 R0 <- abs(eigen(R)$values[1]) # calc dominant eigenvalue of R
 cat("R0=",R0,"\n")
@@ -732,7 +735,7 @@ cat("R0=",R0,"\n")
 In IPM, offspring size is independent of parental size - can calculate $R_0$ by averaging per-capita fecundity with respect to size at birth
 ```{r}
 # Define a probability distribution for offspring sizes
-offspring.prob <- h*c_0z1(meshpts,m.par.true); 
+offspring.prob <- h*c_0z1(meshpts,m.par.true) # integrate h = width of bin
 sum(offspring.prob); # should be 1, and it is. 
 
 #Define the e vector which we will use - calc sum of each column (250 columns)
@@ -748,7 +751,8 @@ cat("R0=",R0,"\n");
 ```
 This is integrating nBigMatrix=251 **what does this mean**
 
-# 3.3.2 Mortality: age and size at death calculations
+# 3.3.2 Mortality: age and size at death calculations  
+# background for Age specific vital rates
 
 Calculate $l_a$ (probability of survival to age $a$):
 
@@ -759,14 +763,16 @@ ${\tilde{l_a}}=\langle l_{a},c \rangle=\int_z l_{a}(z)c(z)\ \mathrm{d}z$
 average value with respect to probability distribution, c: $\langle l_{a},c \rangle = \langle eP^a,c \rangle$ 
 
 ```{r}
-sum ((e %*% P) * offspring.prob) # probability of surviving to age 1
+#sum ((e %*% P) * offspring.prob)
+# probability of any individual surviving to age 1 (based on body size)
+# column sums
 ```
 
 Remember that $eP$ is $eP=\int_z eP(z',z) \mathrm{d}z'$ which is 1 iteration.
 We already multiplied $P$ by $h$ so now, we integrate over $z'$ at each mesh point $z_i$ in 1 calculation.
 ```{r}
 #Lots of the calculations involve multiplying e by P let's see what this does
-cat(round((e %*% P),4)[1:10],"\n") 
+#cat(round((e %*% P),4)[1:10],"\n") 
 ```
 $eP$ is a function of $z$: above code returns vector, with each entry containing $\int_z eP (z',z_{i}) \mathrm{d}z'$
 
@@ -774,7 +780,7 @@ Summing down columns of survival iteration matrix $P$ corresponds to summing ove
 
 An alternative way to do the above is to calculate the probability of being alive next year for each of the meshpts (remembering flowering is fatal):
 ```{r}
-cat(round(s_z(meshpts,m.par.true)*(1-p_bz(meshpts,m.par.true)),4)[1:10],"\n")
+#cat(round(s_z(meshpts,m.par.true)*(1-p_bz(meshpts,m.par.true)),4)[1:10],"\n")
 #does the same.
 ```
 
@@ -783,8 +789,9 @@ For a cohort with size distribution $c(z)$, the average of $eP$
 
 ## Age-specific vital rates: 
 
-alive means you didn't flower or die (Repr==0 & Surv==1), so this gives the probability of survival at each age
+
 ```{r}
+# alive means you didn't flower or die (Repr==0 & Surv==1), so this gives the probability of survival at each age
 summaryBy(alive~age,data=sim.data)
 
 # #How many individuals in each age class?
@@ -796,7 +803,7 @@ summaryBy(alive~age,FUN=length,data=sim.data)
 la <- rep(NA,20)
 
 # calculate la[1], survival of age 0 individuals to age 1
-la[1] <- sum((e %*% P)*offspring.prob)
+la[1] <- sum((e %*% P) * offspring.prob)
 la
 ```
 
@@ -804,9 +811,13 @@ For other age classes, we need to calculate $P_{a}$ = $a^{th}$ power of matrix $
 ```{r}
 #Later survivorships require P^a so let's do the calculation recursively
 Pa <- P
+a <- 2
+
 for(a in 2:20){
-	Pa <- Pa %*% P
+	Pa <- Pa %*% P # why is this changing?
+	Pa[1,1]
 	la[a] <- sum((e %*% Pa) * offspring.prob)
+	la[a]
 }
 
 la <- c(1,la)
