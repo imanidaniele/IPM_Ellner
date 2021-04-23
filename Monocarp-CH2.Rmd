@@ -1,0 +1,389 @@
+---
+title: "R Notebook version of Monocarp Calculations.R"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+## Use the Monocarp IBM to illustrate the construction of an IPM
+
+```{r}
+rm(list = ls(all = TRUE))
+
+library(doBy)
+set.seed(53241986)
+
+# Set simulation parameters
+init.pop.size <- 250
+n.yrs <- 100
+
+#source(" /Standard Graphical Pars.R")
+
+source("/Users/BartMBP/GitHub/first-edition/Rcode/c2/Monocarp Demog Funs.R")
+source("/Users/BartMBP/GitHub/first-edition/Rcode/c2/Monocarp Simulate IBM.R")
+cat(pop.size.t, "\n")
+```
+## trim an initial transient off the simulation
+```{r}
+sim.data <- sim.data[sim.data$yr > 10, ]
+sim.data$yr <- sim.data$yr - 10
+head(sim.data)
+```
+
+# Extract 1000 observations to use as our data set
+```{r}
+sample.index <- sample(1:nrow(sim.data), size = 1000, replace = FALSE)
+sim.data <- sim.data[sample.index, ]
+dim(sim.data)
+```
+
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~## Section 1 - Fit statistical models to simulated data
+## ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Let's use sim data to construct an IPM, assuming we know the order of events first a bit of house keeping for plotting - chop up the sizes into classes and sort the data by size
+```{r}
+sim.data <- transform(sim.data, z.classes = cut(z, 20))
+sim.data <- sim.data[order(sim.data$z), ]
+head(sim.data)
+```
+
+## fit the functions and plot some graphs
+
+## 1 - growth
+```{r}
+mod.Grow <- lm(z1 ~ z, data = sim.data)
+summary(mod.Grow)
+
+```
+
+```{r}
+plot(z1 ~ z, data = sim.data, pch = 16, cex = 0.25, 
+     xlab = expression("Size t, " * italic(z)), 
+     ylab = expression("Size t+1, " * italic(z) * "'"), 
+     main="Growth")
+abline(mod.Grow, col = "red")
+lines(z,z,col="gray")
+```
+
+
+## 2 - flowering
+
+```{r}
+mod.Repr <- glm(Repr ~ z, family = binomial, data = sim.data)
+summary(mod.Repr)
+```
+
+
+```{r}
+Repr.ps <- summaryBy(z + Repr ~ z.classes, data = sim.data)
+plot(Repr ~ z, data = sim.data, cex = 0.7, 
+     xlab = expression("Size t, " *italic(z)), 
+     ylab = "Probability of flowering", col="gray")
+points(Repr.mean ~ z.mean, pch = 19, col="black", data = Repr.ps)
+lines(fitted(mod.Repr) ~ z, data = sim.data, col = "red")
+```
+
+
+## 3 - survival
+```{r}
+sim.data.noRepr <- subset(sim.data, Repr == 0)
+mod.Surv <- glm(Surv ~ z, family = binomial, data = sim.data.noRepr)
+summary(mod.Surv)
+```
+
+```{r}
+surv.ps <- summaryBy(z + Surv ~ z.classes, data = sim.data.noRepr, na.rm = TRUE)
+
+plot(Surv ~ z, data = sim.data.noRepr, col="gray", cex = 0.7,
+     xlab = expression("Size t, " *italic(z)), 
+     ylab = "Probability of survival")
+points(Surv.mean ~ z.mean, data = surv.ps, pch = 19)
+
+lines(fitted(mod.Surv) ~ z, data = sim.data.noRepr, col = "red")
+
+```
+
+
+## 4 - seed production
+```{r}
+sim.data.Repr <- subset(sim.data, Repr == 1)
+mod.Seeds <- glm(Seeds ~ z, family = poisson, data = sim.data.Repr)
+summary(mod.Seeds)
+```
+
+```{r}
+plot(log(Seeds) ~ z, data = sim.data.Repr, pch = 19, 
+     xlab = expression("Size t, " *italic(z)), 
+     ylab = "Seeds production")
+
+abline(mod.Seeds, col = "red")
+
+```
+
+
+
+## 5 - recruit size
+```{r}
+sim.data.Rec <- subset(sim.data, age == 0)
+
+mod.Rcsz <- lm(z ~ 1, sim.data.Rec)
+summary(mod.Rcsz)
+```
+
+```{r}
+hist(sim.data.Rec$z, xlab="Size of Recruits")
+```
+
+
+
+## 6 - establishment probability 
+```{r}
+p.r.est <- as.numeric(Recr)/sum(Seeds, na.rm = TRUE)
+p.r.est
+```
+
+
+## Finally, store the estimated parameters
+```{r}
+m.par.est <- c(surv = coef(mod.Surv), flow = coef(mod.Repr), grow = coef(mod.Grow), 
+               grow.sd = summary(mod.Grow)$sigma, rcsz = coef(mod.Rcsz), rcsz.sd = summary(mod.Rcsz)$sigma, seed = coef(mod.Seeds), p.r = p.r.est)
+
+m.par.est
+```
+
+
+This is just giving the parameters the same names as the true parameters
+```{r}
+names(m.par.est) <- names(m.par.true)
+m.par.est
+```
+
+
+
+## Section 2 - Construct Kernels and projection population size
+this is just finding the min and max of z in sim.data
+```{r}
+nBigMatrix <- 250
+min.size <- with(sim.data, min(z))
+min.size
+max.size <- with(sim.data, max(z))
+max.size
+```
+so let's set the lower and upper limits for the size range at -2.65
+, and 4.5 so slightly smaller/bigger than observed.
+
+
+#From Monocarp Demog Funs.R
+
+## Define the various demographic functions.
+We pass a vector of parameters "m.par" to each function. This makes it easier to compare the results of different paramter sets, say the true values and estimated ones
+
+
+## Growth function, given you are size z now returns the pdf of size z1 next time
+```{r}
+G_z1z <- function(z1, z, m.par)
+{
+    mu <- m.par["grow.int"] + m.par["grow.z"] * z           # mean size next year
+    sig <- m.par["grow.sd"]                                    # sd about mean
+    p.den.grow <- dnorm(z1, mean = mu, sd = sig)             # pdf that you are size z1 given you were size z
+    return(p.den.grow)
+}
+
+```
+
+
+## Survival function, logistic regression
+```{r}
+s_z <- function(z, m.par)
+{
+    linear.p <- m.par["surv.int"] + m.par["surv.z"] * z  # linear predictor
+    p <- 1/(1+exp(-linear.p))                            # logistic transformation to probability
+    return(p)
+}
+
+```
+
+
+## Probability of flowering function, logistic regression
+```{r}
+
+p_bz <- function(z, m.par)
+{
+    linear.p <- m.par["flow.int"] + m.par["flow.z"] * z      # linear predictor
+    p <- 1/(1+exp(-linear.p))                                # logistic transformation to probability
+    return(p)
+}
+
+```
+
+## Seed production function
+```{r}
+b_z <- function(z, m.par)
+{
+    N <- exp(m.par["seed.int"] + m.par["seed.z"] * z)    # seed production of a size z plant
+    return(N)
+}
+```
+
+
+## Recruit size pdf
+```{r}
+c_0z1 <- function(z1, m.par)
+{
+    mu <- m.par["rcsz.int"]
+    sig <- m.par["rcsz.sd"]
+    p.deRecr <- dnorm(z1, mean = mu, sd = sig)              # pdf of a size z1 recruit
+    return(p.deRecr)
+}
+```
+
+
+
+# Section 2 - Functions to build IPM kernels P, F, and K
+
+## Define the survival kernel
+```{r}
+P_z1z <- function (z1, z, m.par) {
+
+    return((1 - p_bz(z, m.par)) * s_z(z, m.par) * G_z1z(z1, z, m.par))
+
+}
+```
+
+
+## Define the fecundity kernel
+```{r}
+F_z1z <- function (z1, z, m.par) {
+
+    return( p_bz(z, m.par) * b_z(z, m.par) * m.par["p.r"] * c_0z1(z1, m.par))
+
+}
+```
+
+## Make Kernal
+```{r}
+mk_K <- function(m, m.par, L, U) {
+
+	# mesh points 
+	h <- (U - L)/m
+	meshpts <- L + ((1:m) - 1/2) * h
+	P <- h * (outer(meshpts, meshpts, P_z1z, m.par = m.par))
+	F <- h * (outer(meshpts, meshpts, F_z1z, m.par = m.par))
+	K <- P + F
+	return(list(K = K, meshpts = meshpts, P = P, F = F))
+}
+
+```
+
+
+##An aside:  what does 'outer' do? 
+
+'outer' takes two vectors and a function (that itself takes two arguments) and builds a matrix by calling the given function for each combination of the elements in the two vectors.
+
+```{r}
+x <- 0:2; # three columns
+y <- 0:4; # five rows
+
+m <- outer (
+   y,     # First dimension:  the columns (y)
+   x,     # Second dimension: the rows    (x)
+   function (x, y)   x+2*y
+);
+
+m
+
+```
+
+
+
+
+```{r}
+IPM.true <- mk_K(nBigMatrix, m.par.true, -2.65, 4.5)
+IPM.est <- mk_K(nBigMatrix, m.par.est, -2.65, 4.5)
+
+Re(eigen(IPM.true$K)$values[1])
+
+Re(eigen(IPM.est$K)$values[1])
+
+```
+
+
+```{r}
+fit.pop.growth <- lm(log(pop.size.t) ~ c(1:yr))
+
+exp(coef(fit.pop.growth)[2])
+
+```
+
+```{r}
+meshpts <- IPM.true$meshpts
+
+w.est <- Re(eigen(IPM.est$K)$vectors[, 1])
+stable.z.dist.est <- w.est/sum(w.est)
+mean.z.est <- sum(stable.z.dist.est * meshpts)
+mean.z.est
+
+```
+
+```{r}
+w.true <- Re(eigen(IPM.true$K)$vectors[, 1])
+stable.z.dist.true <- w.true/sum(w.true)
+mean.z.true <- sum(stable.z.dist.true * meshpts)
+mean.z.true
+
+```
+
+```{r}
+wb.est <- p_bz(meshpts, m.par.est) * w.est
+stable.flowering.dist.est <- wb.est/sum(wb.est)
+mean.flowering.z.est <- sum(stable.flowering.dist.est * meshpts)
+mean.flowering.z.est
+
+```
+
+```{r}
+wb.true <- p_bz(meshpts, m.par.true) * w.true
+stable.flowering.dist.true <- wb.true/sum(wb.true)
+mean.flowering.z.true <- sum(stable.flowering.dist.true * meshpts)
+mean.flowering.z.true
+
+```
+
+
+## 1 - plot population density versus time...
+```{r}
+plot(1:yr, log(pop.size.t[1:yr]), type = "l", xlab = "Time", ylab = "Population size")
+mod.pop.growth <- lm(log(pop.size.t) ~ seq.int(1, yr))
+abline(mod.pop.growth, col = "blue")
+```
+
+
+
+## ...roughly linear for log(Nt) vs time so exponential growth
+
+## 2 - plot mean size versus time...
+```{r}
+plot(1:yr, mean.z.t[1:yr], type = "l", xlab = "Time", ylab = "Mean plant size")
+abline(h = mean.z.true, col = "red")
+
+```
+
+## ...mean size seems to settle down after a while
+
+## 3 - plot mean flowering size versus time...
+```{r}
+ plot(1:yr, mean.fl.z.t[1:yr], type = "l", xlab = "Time", ylab = "Mean flowering plant size")
+abline(h = mean.flowering.z.true, col = "red")
+```
+...mean flowering size seems to settle down after a while
+
+## 4 - plot of density estimates at time 50 and the end
+```{r}
+plot(density(sim.data$z), main = "", ylim = c(0, 0.4), xlab = "Plant size")
+# lines(density(sim.data$z))
+lines(IPM.est$meshpts, stable.z.dist.est/diff(IPM.est$meshpts)[1], col = "red")
+
+```
+
+
