@@ -1,0 +1,443 @@
+---
+title: "chapter 3"
+author: "Imani Russell and Bart DiFiore"
+date: "4/21/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+**This section is the most technical in the book** (so bear with us... We're so glad we volunteered...)
+
+## Brief review
+
+As a general reminder, an IPM takes the form
+$$
+k(z',z) = P(z',z) + F(z',z)
+$$
+
+where $z$ is the size of an individual at time $t$ and $z'$ is the size at time $t+1$. Conceptually, we are trying to predict the population size at some time $t+1$ based on the probability that an individual survives, grows, or reproduces. $P(z',z)$ is the probability that an individual survives to time $t+1$ with a body size in the class $[z',z'+h]$ (remember that $h$ represents the width of the size bin. As $h \rightarrow 0$ $n(z,t)h$ is the number of individuals with size $z$). $F(z',z)$ is the number of new offspring in the interval $[z′, z′ + h]$ present at time $t + 1$, per size-$z$ individual at time $t$. Ok, so P(z',z) represents "survival" and F(z',z) represents "fecundity" or "reproduction".
+
+We can break each of these functions into consituent components. In order to survive into the next size class $z'$, you need to survive the current size class while also growing into the next size class. Therefore, $P(z',z) = s(z)G(z',z)$, where $s$ is the probabiltiy of surviving size class $z$, and $G$ is the probability that you survive into the next size class. 
+
+Ok, so if we put this all together. The number of individuals in size class $z'$ at time $t+1$ is the sum of the contributions of each individual at time $t$, or: 
+
+$$
+n(z',t + 1) = \int K(z',z)n(z,t)dz
+$$
+
+## What is this chapter all about? Why do we care?
+
+Generally, as IPM will allow us to learn something about how structured populations change with time. In particularly, we can determine how many individuals will exist in each state at some time in the future. As Tatum reviewed we can use an IPM to estimate $\lambda$, or the *long-term population growth rate*. And as Taom covered we can use an IPM to estimate $R0$, or the *long-term per-generation rate of increase*. While we are often interested in population level parameters, an IPM is modeling the dyanics of individuals in a particular state being born and dying. Therefore, we can use an IPM to address questions relating to the probable fate of the individual.
+
+This chapter (in our crude approximation) describes how an IPM can be used to: 
+
+1. Estimate population growth $\lambda$ and $R0$
+2. Calculate the probability that an individual survives to a given age
+3. Estimate the average age or size of an individual at death.
+4. Estiate various metrics for related to reproduction
+  - How often does reproduction occur?
+  - When do individuals start to reproduce? 
+
+### Discussion
+*Why do you think these demographic paramters matter? Can you think of questions in your own system where answering these questions would be important?* 
+
+
+## 3.3 Case study 1B: Monocarp life cycle properties and events
+
+To try and simplify the code for this chapter a bit, we are going to try to use the Monocarp population as a case study to ask
+
+1. What is the monocarp populations $\lambda$ and $R0$?
+2. What is the probability of surviving to age $a$?
+3. What is the average size of a individual at death? 
+4. What is the mean and variance for the total reproductive output of an individual? 
+
+We've modified things a bit from the books analysis. Our code is organized according to the questions listed above.
+
+The kernal for the monocarp population is:
+$$
+K(z',z) = (1 - p_b(z))s(z)G(z',z) + p_b(z)b(z)p_rc_0(z')
+$$
+where $p_b$ is the probability that an individual flowers, $p_r$ is the probability that a seedling recruits, $b(z)$ is the number of seeds produced for a plant of size $z$, and $c_0(z')$ is the offspring size distribution at time $t+1$. 
+
+```{r setup, include=F}
+
+# Set up libraries and source files
+
+library(doBy)
+set.seed(53241986)
+
+# Set simulation parameters
+init.pop.size <- 250
+n.yrs <- 100
+
+source("Source_files/Monocarp Demog Funs.R")
+source("Source_files/Monocarp Simulate IBM.R")
+
+# Simulate our population of monocarps.
+sim.data <- sim.data[sim.data$yr > 10, ]
+sim.data$yr <- sim.data$yr - 10
+head(sim.data)
+```
+
+```{r include = T}
+
+# What are the general characteristics of our simulated population?
+
+pop.size.t # population size over 100 time steps
+t <- 1:100
+d <- par(mfrow = c(1,2))
+plot(pop.size.t ~ t, type = "l", ylab = "Total population size (ind.)")
+hist(sim.data$z, xlab = "log(Rosette diameter (cm))", main = "")
+text(x = 4, y = 150000, labels = c("Min = 0.02 cm\nMax = 177 cm"), cex = 0.8)
+par(d)
+
+exp(summary(sim.data$z))
+
+```
+
+So we have our population, now we run the IPM using our known parameter values.
+
+```{r IPM, include = F}
+nBigMatrix <- 250; 
+
+min.size <- with(sim.data, min(z)) # find minimum size
+max.size <- with(sim.data, max(z)) # find maximum size
+
+# construct iteration matrix
+IPM.true <- mk_K(nBigMatrix, m.par.true, -3.5, 5.5) # +2 sd
+
+meshpts <- IPM.true$meshpts # create vector of the meshpts in the iteration matrix - meshpts are the average(?) size for each age class?
+h <- diff(meshpts)[1] # return difference between consecutive meshpts (tell us they are all evenly spaced? is this just a check for the matrix)
+
+```
+
+### Question 1. What is the monocarp populations $\lambda$ and $R0$?
+
+```{r lambda, echo=TRUE}
+# get the dominant eigenvalue
+lambda0 <- Re(eigen(IPM.true$K,only.values = TRUE)$values[1]) #only.values = TRUE specifies to only calculate eigenvalues (not eigenvectors)
+lambda0
+
+fit.pop.growth <- lm(log(pop.size.t[-(1:10)])~c(11:yr))
+lambda.hat <- exp(coef(fit.pop.growth)[2])
+# is the simulated data still the IBM here?
+cat("Growth rate: IPM ",lambda0,"True",lambda.hat, "\n")
+
+# Plot it up
+plot(log(pop.size.t[-(1:10)])~c(11:yr))
+abline(fit.pop.growth, col = "darkblue")
+
+```
+
+The calculation of $R0$ is slighly more difficult. If you recall Taom's beautiful slides $R0$ is the long-term per generation increase in the population. To estimate $R0$ we are going to multiply the reproduction kernal by the *fundamental matrix* $N$, where $N = (I-P)^{-1}.
+
+```{r}
+# define the iteration matricies
+P <- IPM.true$P # survival iteration matrix
+F <- IPM.true$F # fecundity iteration matrix
+
+# calculate fundamental matrix (fundamental operator )
+N <- solve(diag(nBigMatrix)-P) # find probability of dying
+# diag(nBigMatrix) creates ID matrix (I)
+# solve inverts (I-P) matrix
+
+R <- F %*% N # R = kernel -> projects the population from 1 generation to the next
+
+R0 <- abs(eigen(R)$values[1]) # calc dominant eigenvalue of R
+cat("R0=",R0,"\n")
+
+```
+
+In our specific IPM for monocarps, offspring size is independent of parental size. Therefore, we can calculate $R_0$ by averaging per-capita fecundity with respect to size at birth
+```{r}
+# Define a probability distribution for offspring sizes
+offspring.prob <- h*c_0z1(meshpts,m.par.true) # integrate h = width of bin
+sum(offspring.prob); # should be 1, and it is. 
+
+#Define the e vector which we will use - calc sum of each column (250 columns)
+e <- matrix(1,nrow=1,ncol=dim(P)[1]) # P=survival iteration matrix
+# returns a vector 
+# With mixing at birth, we can calculate R0 directly as the 
+# mean per-capita lifetime fecundity across a birth cohort
+R0 <- sum((e %*% R) * offspring.prob)  
+cat("R0=",R0,"\n");
+```
+
+###Question 2. What is the probability of surviving to age $a$?
+
+Your probability of surviving to age $a$ will depend on your size at birth $z_0$. Let $l_a$ represent survivorship to age $a$. The probability that you survive will be the probability that you survive the first year times the probability you survive the second and so on, summed across all possible size. Therefore, 
+
+$$
+l_a(z_0) = \int{Z} P^a(z', z_0)dz'
+$$ 
+
+To do this in R we will need to raise the survival kernal $P$ to the power $a$ and then sum (i.e. integrate) across all the sizes. We can use a nifty trick of matrix algebra to do the summation. 
+
+```{r include = T}
+
+p.temp <- matrix(c(1,3,2,6), nrow = 2)
+p.temp
+e.temp <- matrix(1,nrow=1,ncol=dim(p.temp)[1])
+e.temp
+
+e.temp %*% p.temp
+
+```
+
+
+```{r}
+# alive means you didn't flower or die (Repr==0 & Surv==1), so this gives the probability of survival at each age
+summaryBy(alive~age,data=sim.data)
+
+# #How many individuals in each age class?
+summaryBy(alive~age,FUN=length,data=sim.data)
+# #So we have plenty up to about age 5
+
+# create empty vector to hold survivorship curve 
+# la is the probability of surviving to age a
+la <- rep(NA,20)
+
+# calculate la[1], survival of age 0 individuals to age 1
+la[1] <- sum((e %*% P) * offspring.prob)
+la
+```
+
+For other age classes, we need to calculate $P_{a}$ = $a^{th}$ power of matrix $P$:
+```{r}
+#Later survivorships require P^a so let's do the calculation recursively
+Pa <- P
+a <- 2
+
+for(a in 2:20){
+	Pa <- Pa %*% P # why is this changing?
+	Pa[1,1]
+	la[a] <- sum((e %*% Pa) * offspring.prob)
+	la[a]
+}
+
+la <- c(1,la)
+
+plot(la ~ c(1:21))
+
+library(tidyverse) 
+total = dim(sim.data)[1]
+sim.data %>% group_by(age) %>%
+  filter(alive = TRUE) %>%
+  summarize(count = n()) %>% 
+  mutate(true = count / total, 
+         IPM = la[1:18]) %>%
+  pivot_longer(cols = c(true, IPM)) %>%
+  ggplot(aes(x = age, y = value))+
+    geom_line(aes(color = name))+
+    labs(y = "Survival probability", x = "age")
+```
+
+### Question 3. What is the mean and variance in the size at death?
+
+**insert equation for omega**
+
+Probability of dying - remember there are 2 ways (flowering or natural):
+```{r}
+# multiply each column in fundamental matrix N by vector contaiming probability of death at each meshpt
+omega <-  (meshpts*(p_bz(meshpts,m.par.true) 
+          + (1-p_bz(meshpts,m.par.true))*(1-s_z(meshpts,m.par.true)))) %*% N
+
+#  how can you die? You flower with probability p_bz, and if you don't 
+#  flower (1-p_bz) you die with probability (1-s_z)
+mean.size.death <- sum(omega * offspring.prob)
+round(mean.size.death,4)
+with(sim.data,mean(z[alive==0])) 
+```
+
+Calculate the size at death kernel
+```{r}
+Omega <- (p_bz(meshpts,m.par.true) + (1-p_bz(meshpts,m.par.true))*(1-s_z(meshpts,m.par.true))) * N
+
+# each of the columns defines a probability distribution and so should sum to 1, let's check
+round(e %*% Omega,4)
+#all 1's as it should be.
+```
+
+Calculate distribution of size at death
+```{r}
+# then the distribution of sizes at death for the offspring distribution is
+dist.size.death <- (Omega %*% offspring.prob)
+
+# again this should be a probability distribution and so sum to 1, let's check
+round(e %*% dist.size.death,4)
+# so it's all good, let's calculate some moments
+
+# 1st the mean is
+mean.size.death <-round(sum(dist.size.death*meshpts),4)
+mean.size.death.sim <- round(with(sim.data,mean(z[alive==0])),4)  
+
+# 2nd the variance is
+Var.size.death <- round(sum(dist.size.death*meshpts*meshpts) - 
+          sum(dist.size.death*meshpts)*sum(dist.size.death*meshpts),4)
+          
+Var.size.death.sim <- round(with(sim.data,var(z[alive==0])),4)
+
+# compare simulation to theory
+cat("Size at death","\n")
+cat("Theory: mean=",mean.size.death, " variance=",Var.size.death,"\n")
+cat("Simulation: mean=",mean.size.death.sim, " variance=",Var.size.death.sim,"\n")
+# very close to each other!
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- to calculate the probability of survival from age a to age a+1  -->
+<!-- ```{r} -->
+<!-- # we calculate la[a+1]/la[a] -->
+<!-- pa <- la[2:21]/la[1:20] -->
+
+<!-- # which compares well with the simulation data (plotted below)  -->
+<!-- sim.pa <- summaryBy(alive~age,data=sim.data,keep.names=TRUE) -->
+<!-- ``` -->
+
+<!-- Calculate the age-specific expected fecundity, fa -->
+<!-- ```{r} -->
+<!-- Pa <- P -->
+<!-- fa=rep(NA,20) -->
+<!-- fa.0=sum((e %*% F)*offspring.prob) -->
+<!-- fa[1]=sum((e %*% F %*% P)*offspring.prob) # calculate for age 1 individuals -->
+
+<!-- for(a in 2:20){ -->
+<!-- 	Pa=Pa %*% P -->
+<!-- 	fa[a]= sum((e %*% F %*% Pa)*offspring.prob) -->
+<!-- } -->
+
+<!-- # calculate survival probability -->
+<!-- fa <- c(fa.0,fa) -->
+
+<!-- fa <- fa/la -->
+<!-- round(fa,4) -->
+
+<!-- # Compute age-specific fecundity in simulation  -->
+<!-- sim.data$Recruits = m.par.true["p.r"]*sim.data$Seeds -->
+<!-- sim.data$Recruits[is.na(sim.data$Seeds)] <- 0 -->
+<!-- sim.fa <- summaryBy(Recruits~age,data=sim.data,keep.names=TRUE) -->
+<!-- sim.fa -->
+<!-- #summaryBy(Repr~age,FUN=sum,data=sim.data) -->
+
+<!-- ### Compare theoretical pa and fa with simulation results  -->
+<!-- #(height=4,width=8); set_graph_pars("panel2");  -->
+<!-- par(mfrow=c(1,2)) -->
+<!-- plot(alive ~ age, data = sim.pa[1:10,],ylim=c(0,1),pch=19, -->
+<!-- 	xlab=expression("Age"), -->
+<!-- 	ylab=expression("p"[a])) -->
+<!-- lines(0:9,pa[1:10]) -->
+<!-- add_panel_label("a") -->
+
+<!-- plot(Recruits ~ age, data = sim.fa[1:10,],pch=19, -->
+<!-- 	xlab=expression("Age"),  -->
+<!-- 	ylab=expression("f"[a])) -->
+
+<!-- lines(0:9,fa[1:10]) -->
+<!-- add_panel_label("b") -->
+<!-- ``` -->
+
+<!-- Calculate generation time using definitions from Section 3.1.3 -->
+<!-- ```{r} -->
+<!-- T1 <- log(R0)/log(lambda0) -->
+<!-- T2 <- sum((1:21)*fa*la)/sum(fa*la) -->
+<!-- cat("Generation time log(R0)/log(lambda) = ",T1,"\n") -->
+<!-- cat("Generation time from age-specific rates = ",T2,"\n") -->
+
+<!-- w <- Re(abs(eigen(IPM.true$K)$vectors[,1])) # get dominant eigenvector -->
+
+<!-- off.dist <- F %*% w / (sum(F %*% w)) -->
+<!-- ``` -->
+<!-- Differences between the 2 measures of generation time are small! -->
+
+<!-- ### Age at death - Mean and variance in lifespan -->
+
+<!-- For average lifespan, need to evaluate $\tilde{\eta}=\langle eN,c \rangle$: -->
+<!-- ```{r} -->
+<!-- # For the offspring distribution calculate the expected lifespan -->
+<!-- # To get the mean age at death we subtract 1 from mean lifespan -->
+<!-- # because by our convention lifespan is the number of censuses at which an -->
+<!-- # individual is alive, so if you die with lifespan 1 your age at death is 0.     -->
+<!-- mean.age.death <- round(sum((e %*% N)*offspring.prob) -1,4)  -->
+
+<!-- # sum down fundamental matrix (N) to give expected lifespan at each meshpt, then take average with respect to probability distribution of offspring sizes -->
+
+<!-- #check with the simulation, by calculating the mean age at death -->
+<!-- mean.age.death.sim <- round(with(sim.data,mean(age[alive==0])),4) -->
+
+<!-- # calculate variance in lifespan -->
+<!-- Var.nu <- round(sum((e %*% (2 * N %*% N - N))* offspring.prob)  - sum((e %*% N * offspring.prob ))^2,4) -->
+
+<!-- # check with the simulation - adding a constant doesn't change the variance so we don't need to -->
+<!-- # subtract 1 -->
+<!-- Var.nu.sim <- round(with(sim.data,var(age[alive==0])),4) -->
+
+<!-- cat("Age at death","\n") -->
+<!-- cat("Theory: mean=",mean.age.death, " variance=",Var.nu,"\n");  -->
+<!-- cat("Simulation: mean=",mean.age.death.sim, " variance=",Var.nu.sim,"\n"); -->
+<!-- ``` -->
+
+<!-- plot simulation vs theory -->
+<!-- ```{r} -->
+<!-- ymax <- max(sim.data$yr); -->
+<!-- Vnu.sim <- numeric(ymax) -->
+<!-- for(j in 1:ymax) { -->
+<!--   Vnu.sim[j] <- with(sim.data,var(age[(alive == 0)& (yr==j)])) -->
+<!-- } -->
+
+<!-- par(mfrow=c(1,1),mar=c(5,4,3,1),mgp=c(2.5,1,0)); -->
+<!-- plot(2:ymax, Vnu.sim[-1],xlab="Length of simulation",ylab="Var(age at death)", -->
+<!--      ylim=c(0,1.1*Var.nu),bty="l",pch=1); -->
+<!-- abline(h=Var.nu,lty=2); -->
+<!-- title(main="Monocarp Var(lifespan): sim vs. theory"); -->
+
+<!-- py <- Vnu.sim[10:ymax]; -->
+<!-- px <- 1/(10:ymax); -->
+<!-- fitVnu <- lm(py~px); -->
+<!-- points(10:ymax,fitVnu$fitted,type="l",col="red"); -->
+<!-- cat(Var.nu,fitVnu$coef[1],"\n"); -->
+
+<!-- legend("bottomright",legend=c("Simulation","Theory"), -->
+<!--        lty=c(1,2),pch=c(1,NA),bty="n") -->
+<!-- ``` -->
+
+
+
+<!-- ************** -->
+<!-- left off at 3.3.3 -->
+<!-- *************** -->
