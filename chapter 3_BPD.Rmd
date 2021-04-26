@@ -319,7 +319,7 @@ legend(x = -2, y = 0.8, legend = c("IPM", "TRUE"), col = c("black", "red"), lty 
 
 # "TRUE" parameters
 mean.recs <-  p_bz(meshpts,m.par.true) * m.par.true["p.r"] *  b_z(meshpts,m.par.true)
-plot(mean.recs ~ meshpts)
+#plot(mean.recs ~ meshpts)
 
 sigma.b.2 <-  mean.recs + (1 - p_bz(meshpts,m.par.true)) * mean.recs * mean.recs / p_bz(meshpts,m.par.true)
 
