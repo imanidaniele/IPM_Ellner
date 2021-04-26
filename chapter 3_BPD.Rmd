@@ -8,7 +8,7 @@ output:
 ---
 
 
-**This section is the most technical in the book** (so bear with us... We're so glad we volunteered...)
+*This section is the most technical in the book* (so bear with us... We're so glad we volunteered...)
 
 ## Brief review
 
@@ -17,9 +17,14 @@ $$
 k(z',z) = P(z',z) + F(z',z)
 $$
 
-where $z$ is the size of an individual at time $t$ and $z'$ is the size at time $t+1$. Conceptually, we are trying to predict the population size at some time $t+1$ based on the probability that an individual survives, grows, or reproduces. $P(z',z)$ is the probability that an individual survives to time $t+1$ with a body size in the class $[z',z'+h]$ (remember that $h$ represents the width of the size bin. As $h \rightarrow 0$ $n(z,t)h$ is the number of individuals with size $z$). $F(z',z)$ is the number of new offspring in the interval $[z′, z′ + h]$ present at time $t + 1$, per size-$z$ individual at time $t$. Ok, so P(z',z) represents "survival" and F(z',z) represents "fecundity" or "reproduction".
+Conceptually, we are trying to predict the population size at some time $t+1$ based on the probability that an individual survives, grows, or reproduces. Here,
 
-We can break each of these functions into consituent components. In order to survive into the next size class $z'$, you need to survive the current size class while also growing into the next size class. Therefore, $P(z',z) = s(z)G(z',z)$, where $s$ is the probabiltiy of surviving size class $z$, and $G$ is the probability that you survive into the next size class. 
+  - $z$ is the size of an individual at time $t$  
+  - $z'$ is the size at time $t+1$  
+  - $P(z',z)$ is the probability that an individual survives to time $t+1$ with a body size in the class $[z',z'+h]$. **Important**: remember that $h$ represents the width of the size bin. As $h \rightarrow 0$ $n(z,t)h$ is the number of individuals with size $z$.  
+  - $F(z',z)$ is the number of new offspring in the interval $[z′, z′ + h]$ present at time $t + 1$, per size-$z$ individual at time $t$.   
+
+Ok, so $P(z',z)$ represents "survival" and $F(z',z)$ represents "fecundity" or "reproduction". In order to survive into the next size class $z'$, you need to survive the current size class while also growing into the next size class. Therefore, $P(z',z) = s(z)G(z',z)$, where $s$ is the probabiltiy of surviving size class $z$, and $G$ is the probability that you survive into the next size class.   
 
 Ok, so if we put this all together. The number of individuals in size class $z'$ at time $t+1$ is the sum of the contributions of each individual at time $t$, or: 
 
@@ -29,17 +34,12 @@ $$
 
 ## What is this chapter all about? Why do we care?
 
-Generally, as IPM will allow us to learn something about how structured populations change with time. In particularly, we can determine how many individuals will exist in each state at some time in the future. As Tatum reviewed we can use an IPM to estimate $\lambda$, or the *long-term population growth rate*. And as Taom covered we can use an IPM to estimate $R0$, or the *long-term per-generation rate of increase*. While we are often interested in population level parameters, an IPM is modeling the dyanics of individuals in a particular state being born and dying. Therefore, we can use an IPM to address questions relating to the probable fate of the individual.
+Generally, as IPM will allow us to learn something about how structured populations change with time. In particularly, we can determine how many individuals will exist in each state at some time in the future. As Tatum reviewed we can use an IPM to estimate $\lambda$, or the *long-term population growth rate*. And as Taom covered we can use an IPM to estimate $R0$, or the *long-term per-generation rate of increase*. While we are often interested in population level parameters, an IPM is modeling the dyanics of individuals in a particular state being born and dying. Therefore, we can use an IPM to address questions relating to the probable fate of the individual. For instance, we can use the IPM to estimate
 
-This chapter (in our crude approximation) describes how an IPM can be used to: 
-
-1. Estimate population growth $\lambda$ and $R0$
-2. Calculate the probability that an individual survives to a given age
-3. Estimate the average age or size of an individual at death.
-4. Estiate various metrics for related to reproduction
-  - How often does reproduction occur?
-  - When do individuals start to reproduce? 
-
+  - the probability that an individual survives to a given age  
+  - the average age or size of an individual at death  
+  - various metrics related to when and how much an individual reproduces  
+  
 ### Discussion
 *Why do you think these demographic paramters matter? Can you think of questions in your own system where answering these questions would be important?* 
 
@@ -48,10 +48,10 @@ This chapter (in our crude approximation) describes how an IPM can be used to:
 
 To try and simplify the code for this chapter a bit, we are going to try to use the Monocarp population as a case study to ask
 
-1. What is the monocarp populations $\lambda$ and $R0$?
-2. What is the probability of surviving to age $a$?
-3. What is the average size of a individual at death? 
-4. What is the mean and variance for the total reproductive output of an individual? 
+  1. What is the monocarp populations $\lambda$ and $R0$? 
+  2. What is the probability of surviving to age $a$? 
+  3. What is the mean and variance in size of a individual at death? 
+  4. What is the mean and variance for the total reproductive output of an individual? 
 
 We've modified things a bit from the books analysis. Our code is organized according to the questions listed above.
 
@@ -59,7 +59,13 @@ The kernal for the monocarp population is:
 $$
 K(z',z) = (1 - p_b(z))s(z)G(z',z) + p_b(z)b(z)p_rc_0(z')
 $$
-where $p_b$ is the probability that an individual flowers, $p_r$ is the probability that a seedling recruits, $b(z)$ is the number of seeds produced for a plant of size $z$, and $c_0(z')$ is the offspring size distribution at time $t+1$. 
+
+where
+
+  - $p_b$ is the probability that an individual flowers  
+  - $p_r$ is the probability that a seedling recruits  
+  - $b(z)$ is the number of seeds produced for a plant of size $z$  
+  - $c_0(z')$ is the offspring size distribution at time $t+1$  
 
 ```{r setup, include=F}
 
@@ -81,11 +87,11 @@ sim.data$yr <- sim.data$yr - 10
 head(sim.data)
 ```
 
-```{r include = T}
+```{r include = F, echo = T}
 
 # What are the general characteristics of our simulated population?
 
-pop.size.t # population size over 100 time steps
+#pop.size.t # population size over 100 time steps
 t <- 1:100
 d <- par(mfrow = c(1,2))
 plot(pop.size.t ~ t, type = "l", ylab = "Total population size (ind.)")
@@ -99,7 +105,7 @@ exp(summary(sim.data$z))
 
 So we have our population, now we run the IPM using our known parameter values.
 
-```{r IPM, include = F}
+```{r IPM, include = T}
 nBigMatrix <- 250; 
 
 min.size <- with(sim.data, min(z)) # find minimum size
@@ -126,12 +132,12 @@ lambda.hat <- exp(coef(fit.pop.growth)[2])
 cat("Growth rate: IPM ",lambda0,"True",lambda.hat, "\n")
 
 # Plot it up
-plot(log(pop.size.t[-(1:10)])~c(11:yr))
+plot(log(pop.size.t[-(1:10)])~c(11:yr), xlab = "Year", ylab = "log(Population size)")
 abline(fit.pop.growth, col = "darkblue")
 
 ```
 
-The calculation of $R0$ is slighly more difficult. If you recall Taom's beautiful slides $R0$ is the long-term per generation increase in the population. To estimate $R0$ we are going to multiply the reproduction kernal by the *fundamental matrix* $N$, where $N = (I-P)^{-1}.
+The calculation of $R0$ is slighly more difficult. If you recall Taom's beautiful slides $R0$ is the long-term per generation increase in the population. To estimate $R0$ we are going to multiply the reproduction kernal ($F$) by the *fundamental matrix* $N$, where $N = (I-P)^{-1}$. The resulting kernal, $R$ is the "next generation kernal". $R(z′,z)h$ is an individual’s expected lifetime production of offspring with size at birth in $(z′,z′+h)$, conditional on the individual’s initial size $z$.
 
 ```{r}
 # define the iteration matricies
@@ -150,11 +156,25 @@ cat("R0=",R0,"\n")
 
 ```
 
-In our specific IPM for monocarps, offspring size is independent of parental size. Therefore, we can calculate $R_0$ by averaging per-capita fecundity with respect to size at birth
+In our specific IPM for monocarps, offspring size is independent of parental size. Therefore, we can calculate $R_0$ by averaging per-capita fecundity with respect to size at birth. You can see that both techniques result in the same estimate of $R0$. To do this calculation we need to integrate across the $R$ matrix, or in other words we need to sum each of the columns in the $R$ matrix. We can use a nifty trick of matrix algebra to do the summation. To see whats going on, here is a simple example. 
+
+```{r include = T}
+
+p.temp <- matrix(c(1,3,2,6), nrow = 2)
+p.temp
+e.temp <- matrix(1,nrow=1,ncol=dim(p.temp)[1])
+e.temp
+
+e.temp %*% p.temp
+
+```
+
+And here we use this technique to estimate $R0$ assuming that offspring size in independent of parental size.
+
 ```{r}
 # Define a probability distribution for offspring sizes
 offspring.prob <- h*c_0z1(meshpts,m.par.true) # integrate h = width of bin
-sum(offspring.prob); # should be 1, and it is. 
+#sum(offspring.prob); # should be 1, and it is. 
 
 #Define the e vector which we will use - calc sum of each column (250 columns)
 e <- matrix(1,nrow=1,ncol=dim(P)[1]) # P=survival iteration matrix
@@ -173,26 +193,14 @@ $$
 l_a(z_0) = \int{Z} P^a(z', z_0)dz'
 $$ 
 
-To do this in R we will need to raise the survival kernal $P$ to the power $a$ and then sum (i.e. integrate) across all the sizes. We can use a nifty trick of matrix algebra to do the summation. 
+To do this in R we will need to raise the survival kernal $P$ to the power $a$ and then sum (i.e. integrate) across all the sizes. 
 
 ```{r include = T}
-
-p.temp <- matrix(c(1,3,2,6), nrow = 2)
-p.temp
-e.temp <- matrix(1,nrow=1,ncol=dim(p.temp)[1])
-e.temp
-
-e.temp %*% p.temp
-
-```
-
-
-```{r}
 # alive means you didn't flower or die (Repr==0 & Surv==1), so this gives the probability of survival at each age
-summaryBy(alive~age,data=sim.data)
+s1 <- summaryBy(alive~age,data=sim.data)
 
 # #How many individuals in each age class?
-summaryBy(alive~age,FUN=length,data=sim.data)
+s2 <- summaryBy(alive~age,FUN=length,data=sim.data)
 # #So we have plenty up to about age 5
 
 # create empty vector to hold survivorship curve 
@@ -204,8 +212,8 @@ la[1] <- sum((e %*% P) * offspring.prob)
 la
 ```
 
-For other age classes, we need to calculate $P_{a}$ = $a^{th}$ power of matrix $P$:
-```{r}
+To generalize for other age classes, we need to calculate $P_{a}$ = $a^{th}$ power of matrix $P$:
+```{r warning=FALSE, include=TRUE}
 #Later survivorships require P^a so let's do the calculation recursively
 Pa <- P
 a <- 2
@@ -219,7 +227,7 @@ for(a in 2:20){
 
 la <- c(1,la)
 
-plot(la ~ c(1:21))
+#plot(la ~ c(1:21))
 
 library(tidyverse) 
 total = dim(sim.data)[1]
@@ -233,46 +241,46 @@ sim.data %>% group_by(age) %>%
     geom_line(aes(color = name))+
     labs(y = "Survival probability", x = "age")
 ```
+IPM predicts higher survival probability than the truth until a little after age 5. Prediction starts at 100% for age 0 and quickly declines.
 
 ### Question 3. What is the mean and variance in the size at death?
 
-**insert equation for omega**
+We may be interested in understanding at what size individuals tend to die in a population. 
 
-Probability of dying - remember there are 2 ways (flowering or natural):
-```{r}
-# multiply each column in fundamental matrix N by vector contaiming probability of death at each meshpt
-omega <-  (meshpts*(p_bz(meshpts,m.par.true) 
-          + (1-p_bz(meshpts,m.par.true))*(1-s_z(meshpts,m.par.true)))) %*% N
+$$
+\Omega(z',z) = (1-s(z'))N(z',z)
+$$
 
-#  how can you die? You flower with probability p_bz, and if you don't 
-#  flower (1-p_bz) you die with probability (1-s_z)
-mean.size.death <- sum(omega * offspring.prob)
-round(mean.size.death,4)
-with(sim.data,mean(z[alive==0])) 
-```
+$\Omega$ represents the distribution of sizes at which individuals die. We've skipped the derivation here, but check out where this equation comes from at pages 66-69. In the monocarp casestudy you die when you flower, and if you don't flower you die with a probability based on your current size $1-s(z)$. Therefore, in our case 
 
-Calculate the size at death kernel
+$$
+\Omega(z',z) = [p_b(z',z) + (1-p_b(z',z))*(1-s(z))]N(z',z)
+$$
+
 ```{r}
 Omega <- (p_bz(meshpts,m.par.true) + (1-p_bz(meshpts,m.par.true))*(1-s_z(meshpts,m.par.true))) * N
 
-# each of the columns defines a probability distribution and so should sum to 1, let's check
-round(e %*% Omega,4)
-#all 1's as it should be.
-```
+#  how can you die? You flower with probability p_bz, and if you don't 
+#  flower (1-p_bz) you die with probability (1-s_z)
 
-Calculate distribution of size at death
-```{r}
+# each of the columns defines a probability distribution and so should sum to 1, let's check
+#round(e %*% Omega,4)
+#all 1's as it should be.
+
 # then the distribution of sizes at death for the offspring distribution is
 dist.size.death <- (Omega %*% offspring.prob)
 
 # again this should be a probability distribution and so sum to 1, let's check
-round(e %*% dist.size.death,4)
+#round(e %*% dist.size.death,4)
 # so it's all good, let's calculate some moments
 
 # 1st the mean is
 mean.size.death <-round(sum(dist.size.death*meshpts),4)
-mean.size.death.sim <- round(with(sim.data,mean(z[alive==0])),4)  
-
+mean.size.death.sim <- round(with(sim.data,mean(z[alive==0])),4)
+d <- par(mfrow = c(1,2))
+plot(dist.size.death~meshpts, xlab = "log(Size)", ylab = "Probability of dying at a particular size")
+hist(sim.data$z[sim.data$alive == 0], xlab = "log(Size)", main = "Actual data")
+par(d)
 # 2nd the variance is
 Var.size.death <- round(sum(dist.size.death*meshpts*meshpts) - 
           sum(dist.size.death*meshpts)*sum(dist.size.death*meshpts),4)
@@ -286,7 +294,47 @@ cat("Simulation: mean=",mean.size.death.sim, " variance=",Var.size.death.sim,"\n
 # very close to each other!
 ```
 
+### Question 4. What is the mean and variance for the total number of recruits produced by an individual?
 
+To figure out how many recruits an individual will produce we need to first determine the relationship between how large an individual is and when it reproduces. Because monocarps die at first reproduction, we can use the kernal $P(z',z)$ to estimate the size distribution of individuals who survive without breeding.
+
+```{r}
+
+#As reproduction is fatal the P kernel is the required P0 kernel
+P0 <- P
+N0 <- solve(diag(nBigMatrix)-P0)
+
+#So B is given by
+B <- p_bz(meshpts,m.par.true) %*% N0 #probabilities of breeding at least once
+
+plot(meshpts,B,type="l", ylab = "Probabiilty that an individual reproduces (and dies)", xlab = "log(Size)")
+points(meshpts,p_bz(meshpts,m.par.true),type="l",col="red")
+legend(x = -2, y = 0.8, legend = c("IPM", "TRUE"), col = c("black", "red"), lty = c(1,1))
+```
+
+```{r}
+
+#Variance in life-time reproductive output
+#For a Poisson distribution the mean equals the variance, so for the number of recruits (not seeds)
+
+# "TRUE" parameters
+mean.recs <-  p_bz(meshpts,m.par.true) * m.par.true["p.r"] *  b_z(meshpts,m.par.true)
+plot(mean.recs ~ meshpts)
+
+sigma.b.2 <-  mean.recs + (1 - p_bz(meshpts,m.par.true)) * mean.recs * mean.recs / p_bz(meshpts,m.par.true)
+
+# Parmaters from the IPM
+rbar <- e %*% R # how many recruits you produce is contingent on your initial size therefore F*N = R
+#hist(as.vector(rbar))
+plot(as.vector(rbar) ~ meshpts, ylab = "Average number of recruits per individual", xlab = "log(Size)")
+lines(mean.recs ~ meshpts)
+
+r2 <- (sigma.b.2 + (m.par.true["p.r"] * p_bz(meshpts,m.par.true) * b_z(meshpts,m.par.true))^2) %*% N
+var.b <- r2 - rbar*rbar
+
+#plot(as.vector(var.b) ~ meshpts)
+
+```
 
 
 
